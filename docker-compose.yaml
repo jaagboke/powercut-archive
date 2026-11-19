@@ -1,37 +1,3 @@
-#services:
-##  capture-nged:
-##    build: .
-##    command: ["python", "-m", "powercuts", "--dno", "nged", "--interval", "120"]
-##    volumes:
-##      - ./data:/app/data
-##    restart: unless-stopped
-#
-#  db:
-#    image: postgres:16
-#    environment:
-#      POSTGRES_USER: powercuts
-#      POSTGRES_PASSWORD: powercuts
-#      POSTGRES_DB: powercuts
-#    ports:
-#           - "127.0.0.1:5432:5432"
-#    volumes:
-#      - pgdata:/var/lib/postgresql/data
-#    restart: unless-stopped
-#
-#  processor-nged:
-#    build: .
-#    command: ["python", "-m", "powercuts.process", "--dno", "nged", "--interval", "300"]
-#    environment:
-#      DATABASE_URL: postgresql://powercuts:powercuts@db:5432/powercuts
-#    volumes:
-#      - ./data:/app/data
-#    depends_on:
-#      - db
-#    restart: unless-stopped
-#
-#volumes:
-#  pgdata:
-
 services:
   db:
     image: postgres:16
