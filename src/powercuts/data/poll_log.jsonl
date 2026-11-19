@@ -1,0 +1,3 @@
+{"dno": "nged", "fetched_at": "2026-11-17T09:24:06.629940+00:00", "ok": true, "status_code": 200, "bytes": 15003, "sha256": "7cd65e26b15758a3671209871f47db941639936ffb6ac8a8fd178368b6af4a09", "changed": true, "saved_to": "raw/nged/2026-11-17/092406Z.csv"}
+{"dno": "nged", "fetched_at": "2026-11-17T09:25:30.219144+00:00", "ok": true, "status_code": 200, "bytes": 16837, "sha256": "fd734788e7e956b016ef89c12240f7833f527da64742ab3d5b9564eeb1922648", "changed": true, "saved_to": "raw/nged/2026-11-17/092530Z.csv"}
+{"dno": "nged", "fetched_at": "2026-11-17T09:25:42.640693+00:00", "ok": true, "status_code": 200, "bytes": 16837, "sha256": "fd734788e7e956b016ef89c12240f7833f527da64742ab3d5b9564eeb1922648", "changed": false}
