@@ -28,7 +28,9 @@ jobs:
         env:
           SPEN_API_KEY: ${{ secrets.SPEN_API_KEY }}
           UKPN_API_KEY: ${{ secrets.UKPN_API_KEY }}
+          ENWL_API_KEY: ${{ secrets.ENWL_API_KEY }}
         run: |
+          echo "SPEN key length: ${#SPEN_API_KEY}"
           python -m powercuts --dno nged --once --data-dir archive
           python -m powercuts --dno ssen --once --data-dir archive
           python -m powercuts --dno npg --once --data-dir archive
