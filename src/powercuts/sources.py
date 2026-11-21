@@ -27,5 +27,11 @@ FEEDS = {
         "url": "https://ukpowernetworks.opendatasoft.com/api/explore/v2.1/catalog/datasets/ukpn-live-faults/exports/json",
         "extension": "json",
         "api_key_env": "UKPN_API_KEY",
+    },
+    "enwl": {
+        "name": "Electricity North West",
+        "url": "https://electricitynorthwest.opendatasoft.com/api/explore/v2.1/catalog/datasets/live_incidents/exports/json",
+        "extension": "json",
+        "api_key_env": "ENWL_API_KEY",
     }
 }

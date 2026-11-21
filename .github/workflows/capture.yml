@@ -34,6 +34,7 @@ jobs:
           python -m powercuts --dno npg --once --data-dir archive
           python -m powercuts --dno spen --once --data-dir archive
           python -m powercuts --dno ukpn --once --data-dir archive
+          python -m powercuts --dno enwl --once --data-dir archive
 
       - name: Commit new snapshots
         run: |
