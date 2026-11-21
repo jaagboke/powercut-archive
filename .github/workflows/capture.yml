@@ -27,11 +27,13 @@ jobs:
       - name: Capture feeds
         env:
           SPEN_API_KEY: ${{ secrets.SPEN_API_KEY }}
+          UKPN_API_KEY: ${{ secrets.UKPN_API_KEY }}
         run: |
           python -m powercuts --dno nged --once --data-dir archive
           python -m powercuts --dno ssen --once --data-dir archive
           python -m powercuts --dno npg --once --data-dir archive
           python -m powercuts --dno spen --once --data-dir archive
+          python -m powercuts --dno ukpn --once --data-dir-archive
 
       - name: Commit new snapshots
         run: |

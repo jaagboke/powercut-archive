@@ -21,5 +21,11 @@ FEEDS = {
         "url": "https://spenergynetworks.opendatasoft.com/api/explore/v2.1/catalog/datasets/distribution-network-live-outages/exports/json",
         "extension": "json",
         "api_key_env": "SPEN_API_KEY",
+    },
+    "ukpn": {
+        "name": "UK Power Networks",
+        "url": "https://ukpowernetworks.opendatasoft.com/api/explore/v2.1/catalog/datasets/ukpn-live-faults/exports/json",
+        "extension": "json",
+        "api_key_env": "UKPN_API_KEY",
     }
 }
