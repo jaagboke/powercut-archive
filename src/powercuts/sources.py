@@ -1,3 +1,5 @@
+import json
+
 FEEDS = {
     "nged": {
         "name": "National Grid Electricity Distribution",
@@ -7,6 +9,11 @@ FEEDS = {
     "ssen": {
         "name": "Scottish and Southern Electricity Networks",
         "url": "https://external.distribution.prd.ssen.co.uk/opendataportal-prd/v4/api/getallfaults",
+        "extension": "json",
+    },
+    "npg": {
+        "name": "Northern Powergrid",
+        "url": "https://northernpowergrid.opendatasoft.com/api/explore/v2.1/catalog/datasets/live-power-cuts-data/exports/json",
         "extension": "json",
     },
 }
