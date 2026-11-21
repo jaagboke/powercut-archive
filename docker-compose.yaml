@@ -13,7 +13,7 @@ services:
 
   processor-nged:
     build: .
-    command: ["python", "-m", "powercuts.process", "--dno", "nged", "--interval", "300"]
+    command: ["python", "-m", "powercuts.process", "--interval", "300"]
     environment:
       DATABASE_URL: postgresql://powercuts:powercuts@db:5432/powercuts
     volumes:
