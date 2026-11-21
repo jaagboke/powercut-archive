@@ -36,7 +36,7 @@ def rebuild(dno: str, data_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rebuild outage tables from raw snapshots")
-    parser.add_argument("--dno", choices=PARSERS.keys(), help="one DNO, or leave out for all", required=True)
+    parser.add_argument("--dno", choices=PARSERS.keys(), help="one DNO, or leave out for all")
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--interval", type=int, default=0, help="seconds between runs, 0 = run once")
     args = parser.parse_args()
