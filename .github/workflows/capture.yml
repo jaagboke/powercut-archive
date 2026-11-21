@@ -8,7 +8,9 @@ on:
 permissions:
   contents: write
 
-concurrency: capture
+concurrency:
+  group: capture
+  cancel-in-progress: false
 
 jobs:
   capture:
@@ -22,19 +24,17 @@ jobs:
 
       - run: pip install .
 
-      - run: python -m powercuts --dno nged --once --data-dir archive
-
-      - run: python -m powercuts --dno ssen --once --data-dir archive
-
-      - run: python -m powercuts --dno npg --once --data-dir archive
+      - name: Capture feeds
+        run: |
+          python -m powercuts --dno nged --once --data-dir archive
+          python -m powercuts --dno ssen --once --data-dir archive
+          python -m powercuts --dno npg --once --data-dir archive
 
       - name: Commit new snapshots
         run: |
           git config user.name "capture-bot"
           git config user.email "actions@users.noreply.github.com"
           git add archive
-          git commit -m "NGED snapshot $(date -u +%Y-%m-%dT%H:%MZ)" || echo "No changes"
-          git commit -m "SSEN Snapshots $(date -u +%Y-%m-%dT%H:%MZ)" || echo "No changes"
-          git commit -m "npg Snapshots $(date -u +%Y-%m-%dT%H:%MZ)" || echo "No changes"
-          git pull --rebase --autostash
+          git commit -m "Snapshots $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+          git pull --rebase --autostash -X theirs
           git push
