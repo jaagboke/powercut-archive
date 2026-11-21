@@ -16,4 +16,10 @@ FEEDS = {
         "url": "https://northernpowergrid.opendatasoft.com/api/explore/v2.1/catalog/datasets/live-power-cuts-data/exports/json",
         "extension": "json",
     },
+    "spen": {
+        "name": "SP Energy Networks",
+        "url": "https://spenergynetworks.opendatasoft.com/api/explore/v2.1/catalog/datasets/distribution-network-live-outages/exports/json",
+        "extension": "json",
+        "api_key_env": "SPEN_API_KEY",
+    }
 }
