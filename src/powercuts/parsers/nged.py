@@ -22,7 +22,7 @@ def to_float(value: str) -> float | None:
 def to_postcodes(value: str) -> tuple[str, ...]:
     return tuple(p.strip() for p in value.split(",") if p.strip())
 
-def parse(content: bytes) -> list[Observation]:
+def parse(content: bytes, fetched_at: datetime | None = None) -> list[Observation]:
     text = content.decode("utf-8-sig")
     first_line = text.splitlines()[0]
     dialect = csv.Sniffer().sniff(first_line, delimiters=",\t")

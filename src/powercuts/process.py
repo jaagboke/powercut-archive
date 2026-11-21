@@ -4,15 +4,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from powercuts import db
-from powercuts.parsers import nged, ssen
+from powercuts.parsers import nged, ssen, enwl, npg, ukpn, spen
 from powercuts.sources import FEEDS
 from powercuts.tracker import Tracker
 
 PARSERS = {
     "nged": nged.parse,
     "ssen": ssen.parse,
+    "npg": npg.parse,
+    "spen": spen.parse,
+    "ukpn": ukpn.parse,
+    "enwl": enwl.parse,
 }
 
+
+def fetched_time(path: Path) -> datetime:
+    # snapshots are saved as raw/<dno>/<YYYY-MM-DD>/<HHMMSS>Z.<ext>
+    return datetime.strptime(f"{path.parent.name} {path.stem}", "%Y-%m-%d %H%M%SZ").replace(tzinfo=UTC)
 
 def rebuild(dno: str, data_dir: Path) -> None:
     parse = PARSERS[dno]
@@ -22,7 +30,7 @@ def rebuild(dno: str, data_dir: Path) -> None:
     tracker = Tracker(dno)
     changes = []
     for path in files:
-        changes += tracker.apply(parse(path.read_bytes()))
+        changes += tracker.apply(parse(path.read_bytes(), fetched_time(path)))
 
     with db.connect() as conn:
         db.create_tables(conn)

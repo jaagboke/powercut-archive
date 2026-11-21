@@ -7,7 +7,7 @@ def to_datetime(value: str) -> datetime | None:
         return  None
     return datetime.fromisoformat(value)
 
-def parse(content: bytes) -> list[Observation]:
+def parse(content: bytes, fetched_at: datetime | None = None) -> list[Observation]:
     data = json.loads(content)
     observed_at = to_datetime(data["timestampUtc"])
     observations = []
