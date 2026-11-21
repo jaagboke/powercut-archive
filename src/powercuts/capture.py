@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,8 +27,17 @@ def capture(dno: str, client: httpx.Client, data_dir: Path, now: datetime | None
     now = now or datetime.now(UTC)
     record = {"dno": dno, "fetched_at": now.isoformat(), "ok": False}
 
+    headers = {}
+    if "api_key_env" in feed:
+        key = os.environ.get(feed["api_key_env"])
+        if not key:
+            record["error"] = f"missing environment variable {feed['api_key_env']}"
+            write_log(data_dir, record)
+            return record
+        headers["Authorization"] = f"Apikey {key}"
+
     try:
-        response = client.get(feed["url"])
+        response = client.get(feed["url"], headers=headers)
         response.raise_for_status()
     except httpx.HTTPError as e:
         record["error"] = f"{type(e).__name__}: {e}"
