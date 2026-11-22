@@ -22,5 +22,16 @@ services:
       - db
     restart: unless-stopped
 
+  web:
+    build: .
+    command: [ "uvicorn", "powercuts.web:app", "--host", "0.0.0.0", "--port", "8000" ]
+    environment:
+      DATABASE_URL: postgresql://powercuts:powercuts@db:5432/powercuts
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
 volumes:
   pgdata:
