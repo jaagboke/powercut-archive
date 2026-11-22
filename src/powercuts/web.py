@@ -74,3 +74,32 @@ def summary():
             for dno, open_now, ended, customers in rows
         ],
     }
+
+@app.get("/history")
+def history_page():
+    return FileResponse(STATIC / "history.html")
+
+
+@app.get("/api/daily")
+def daily():
+    with db.connect() as conn:
+        rows = conn.execute(
+            """
+            WITH starts AS (
+                SELECT dno, min(first_seen) AS capture_start
+                FROM outages
+                GROUP BY dno
+            )
+            SELECT o.dno,
+                   (o.first_seen AT TIME ZONE 'Europe/London')::date AS day,
+                   count(*) AS outages
+            FROM outages o
+            JOIN starts s ON s.dno = o.dno
+            WHERE NOT o.planned
+              AND o.first_seen > s.capture_start
+            GROUP BY o.dno, day
+            ORDER BY day, o.dno
+            """
+        ).fetchall()
+
+    return [{"dno": dno, "day": day.isoformat(), "outages": count} for dno, day, count in rows]
