@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GB Power Cut Archive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; display: flex; height: 100vh; }
+    #side { width: 320px; padding: 16px; overflow-y: auto; border-right: 1px solid #ddd; }
+    #map { flex: 1; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .updated { color: #666; font-size: 13px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: right; padding: 6px 4px; border-bottom: 1px solid #eee; }
+    th:first-child, td:first-child { text-align: left; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <div id="side">
+    <h1>GB power cuts right now</h1>
+    <div class="updated" id="updated"></div>
+    <table>
+      <thead><tr><th>DNO</th><th>Open</th><th>Customers off</th><th>Ended 24h</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    const COLOURS = {
+      nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
+      spen: "#9467bd", ukpn: "#d62728", enwl: "#8c564b",
+    };
+
+    async function loadSummary() {
+      const data = await (await fetch("/api/summary")).json();
+      document.getElementById("updated").textContent =
+        "Latest snapshot: " + (data.updated ? new Date(data.updated).toLocaleString("en-GB") : "none");
+      document.getElementById("rows").innerHTML = data.dnos.map(d => `
+        <tr>
+          <td><span class="dot" style="background:${COLOURS[d.dno] || "#999"}"></span>${d.dno.toUpperCase()}</td>
+          <td>${d.open_now}</td>
+          <td>${d.customers_off}</td>
+          <td>${d.ended_24h}</td>
+        </tr>`).join("");
+    }
+
+    const map = new maplibregl.Map({
+      container: "map",
+      center: [-2.5, 54.5],
+      zoom: 5,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors",
+          },
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }],
+      },
+    });
+
+    map.on("load", async () => {
+      const outages = await (await fetch("/api/open")).json();
+      map.addSource("outages", { type: "geojson", data: outages });
+
+      const colourMatch = ["match", ["get", "dno"]];
+      for (const [dno, colour] of Object.entries(COLOURS)) colourMatch.push(dno, colour);
+      colourMatch.push("#999");
+
+      map.addLayer({
+        id: "outages",
+        type: "circle",
+        source: "outages",
+        paint: {
+          "circle-color": colourMatch,
+          "circle-radius": 6,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "#fff",
+        },
+      });
+
+      map.on("click", "outages", e => {
+        const p = e.features[0].properties;
+        new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(`
+            <b>${p.dno.toUpperCase()} ${p.source_id}</b><br>
+            ${p.planned === true || p.planned === "true" ? "Planned" : "Unplanned"} · ${p.status || ""}<br>
+            ${p.category && p.category !== "null" ? p.category + "<br>" : ""}
+            Customers off: ${p.customers ?? "?"}<br>
+            First seen: ${new Date(p.first_seen).toLocaleString("en-GB")}<br>
+            ETR: ${p.etr && p.etr !== "null" ? new Date(p.etr).toLocaleString("en-GB") : "not given"}
+          `)
+          .addTo(map);
+      });
+      map.on("mouseenter", "outages", () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", "outages", () => (map.getCanvas().style.cursor = ""));
+    });
+
+    loadSummary();
+  </script>
+</body>
+</html>
