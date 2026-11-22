@@ -103,3 +103,47 @@ def daily():
         ).fetchall()
 
     return [{"dno": dno, "day": day.isoformat(), "outages": count} for dno, day, count in rows]
+
+@app.get("/api/durations")
+def durations():
+    with db.connect() as conn:
+        rows = conn.execute(
+            """
+            WITH starts AS (
+                SELECT dno, min(first_seen) AS capture_start
+                FROM outages
+                GROUP BY dno
+            ),
+            durations AS (
+                SELECT o.dno,
+                       o.ended_after + (o.ended_before - o.ended_after) / 2
+                           - coalesce(o.reported_at, o.first_seen) AS duration
+                FROM outages o
+                JOIN starts s ON s.dno = o.dno
+                WHERE NOT o.planned
+                  AND o.ended_before IS NOT NULL
+                  AND o.first_seen > s.capture_start
+                  AND o.ended_before - o.ended_after <= interval '30 minutes'
+            )
+            SELECT dno,
+                   count(*) AS outages,
+                   extract(epoch FROM percentile_cont(0.5) WITHIN GROUP (ORDER BY duration)) / 60 AS median_minutes,
+                   extract(epoch FROM percentile_cont(0.9) WITHIN GROUP (ORDER BY duration)) / 60 AS p90_minutes,
+                   avg((duration > interval '12 hours')::int) AS share_over_12h
+            FROM durations
+            WHERE duration > interval '0'
+            GROUP BY dno
+            ORDER BY dno
+            """
+        ).fetchall()
+
+    return [
+        {
+            "dno": dno,
+            "outages": count,
+            "median_minutes": round(median),
+            "p90_minutes": round(p90),
+            "share_over_12h": round(float(share), 3),
+        }
+        for dno, count, median, p90, share in rows
+    ]

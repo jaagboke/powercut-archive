@@ -20,6 +20,13 @@
   </div>
   <canvas id="daily" height="120"></canvas>
 
+  <h1 style="margin-top: 40px;">How long unplanned power cuts last</h1>
+  <div class="note">
+    From when the fault was reported to when it left the feed. Excludes outages whose end time is uncertain by more than 30 minutes.
+  </div>
+  <canvas id="durations" height="100"></canvas>
+  <table id="duration-table" style="margin-top: 16px; border-collapse: collapse; font-size: 14px;"></table>
+
   <script>
     const COLOURS = {
       nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
@@ -55,7 +62,41 @@
       });
     }
 
+        function hours(minutes) {
+      return (minutes / 60).toFixed(1) + "h";
+    }
+
+    async function drawDurations() {
+      const rows = await (await fetch("/api/durations")).json();
+
+      new Chart(document.getElementById("durations"), {
+        type: "bar",
+        data: {
+          labels: rows.map(r => r.dno.toUpperCase()),
+          datasets: [
+            { label: "Median", data: rows.map(r => r.median_minutes / 60), backgroundColor: "#1f77b4" },
+            { label: "90th percentile", data: rows.map(r => r.p90_minutes / 60), backgroundColor: "#aec7e8" },
+          ],
+        },
+        options: {
+          scales: { y: { beginAtZero: true, title: { display: true, text: "Hours" } } },
+        },
+      });
+
+      const cell = "padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right;";
+      document.getElementById("duration-table").innerHTML = `
+        <tr><th style="${cell} text-align: left;">DNO</th><th style="${cell}">Outages</th>
+            <th style="${cell}">Median</th><th style="${cell}">90th pct</th><th style="${cell}">Over 12h</th></tr>
+        ${rows.map(r => `
+          <tr><td style="${cell} text-align: left;">${r.dno.toUpperCase()}</td>
+              <td style="${cell}">${r.outages}</td>
+              <td style="${cell}">${hours(r.median_minutes)}</td>
+              <td style="${cell}">${hours(r.p90_minutes)}</td>
+              <td style="${cell}">${(r.share_over_12h * 100).toFixed(0)}%</td></tr>`).join("")}`;
+    }
+
     drawDaily();
+    drawDurations()
   </script>
 </body>
 </html>
