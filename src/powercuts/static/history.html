@@ -27,6 +27,14 @@
   <canvas id="durations" height="100"></canvas>
   <table id="duration-table" style="margin-top: 16px; border-collapse: collapse; font-size: 14px;"></table>
 
+  <h1 style="margin-top: 40px;">How accurate are restoration estimates?</h1>
+  <div class="note">
+    Actual end versus the final ETR given. "On time" means within 30 minutes either side.
+    "First ETR on time" scores the original estimate instead of the last one.
+  </div>
+  <canvas id="etr" height="100"></canvas>
+  <table id="etr-table" style="margin-top: 16px; border-collapse: collapse; font-size: 14px;"></table>
+
   <script>
     const COLOURS = {
       nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
@@ -95,8 +103,50 @@
               <td style="${cell}">${(r.share_over_12h * 100).toFixed(0)}%</td></tr>`).join("")}`;
     }
 
+
+        function pct(value) {
+      return value === null ? "–" : (value * 100).toFixed(0) + "%";
+    }
+
+    async function drawEtr() {
+      const rows = await (await fetch("/api/etr")).json();
+      const labels = rows.map(r => r.dno.toUpperCase());
+
+      new Chart(document.getElementById("etr"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "Early", data: rows.map(r => r.early * 100), backgroundColor: "#2ca02c" },
+            { label: "On time", data: rows.map(r => r.on_time * 100), backgroundColor: "#1f77b4" },
+            { label: "Late", data: rows.map(r => r.late * 100), backgroundColor: "#d62728" },
+          ],
+        },
+        options: {
+          indexAxis: "y",
+          scales: {
+            x: { stacked: true, max: 100, title: { display: true, text: "% of outages" } },
+            y: { stacked: true },
+          },
+        },
+      });
+
+      const cell = "padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right;";
+      document.getElementById("etr-table").innerHTML = `
+        <tr><th style="${cell} text-align: left;">DNO</th><th style="${cell}">Outages</th>
+            <th style="${cell}">Final ETR on time</th><th style="${cell}">First ETR on time</th>
+            <th style="${cell}">Avg revisions</th></tr>
+        ${rows.map(r => `
+          <tr><td style="${cell} text-align: left;">${r.dno.toUpperCase()}</td>
+              <td style="${cell}">${r.outages}</td>
+              <td style="${cell}">${pct(r.on_time)}</td>
+              <td style="${cell}">${pct(r.first_on_time)}</td>
+              <td style="${cell}">${r.avg_revisions}</td></tr>`).join("")}`;
+    }
+
     drawDaily();
-    drawDurations()
+    drawDurations();
+    drawEtr();
   </script>
 </body>
 </html>

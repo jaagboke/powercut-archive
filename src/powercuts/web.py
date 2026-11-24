@@ -147,3 +147,68 @@ def durations():
         }
         for dno, count, median, p90, share in rows
     ]
+
+@app.get("/api/etr")
+def etr_accuracy():
+    with db.connect() as conn:
+        rows = conn.execute(
+            """
+            WITH starts AS (
+                SELECT dno, min(first_seen) AS capture_start
+                FROM outages
+                GROUP BY dno
+            ),
+            etr_changes AS (
+                SELECT dno, source_id,
+                       count(*) AS revisions,
+                       (array_agg(old_value ORDER BY at))[1] AS first_etr
+                FROM outage_changes
+                WHERE kind = 'updated' AND field = 'etr'
+                GROUP BY dno, source_id
+            ),
+            scored AS (
+                SELECT o.dno,
+                       o.ended_after + (o.ended_before - o.ended_after) / 2 AS ended_at,
+                       o.etr AS final_etr,
+                       CASE WHEN c.source_id IS NULL THEN o.etr ELSE c.first_etr::timestamptz END AS first_etr,
+                       coalesce(c.revisions, 0) AS revisions
+                FROM outages o
+                JOIN starts s ON s.dno = o.dno
+                LEFT JOIN etr_changes c ON c.dno = o.dno AND c.source_id = o.source_id
+                WHERE NOT o.planned
+                  AND o.ended_before IS NOT NULL
+                  AND o.first_seen > s.capture_start
+                  AND o.ended_before - o.ended_after <= interval '30 minutes'
+                  AND o.etr IS NOT NULL
+            )
+            SELECT dno,
+                   count(*) AS outages,
+                   avg((ended_at < final_etr - interval '30 minutes')::int) AS early,
+                   avg((ended_at BETWEEN final_etr - interval '30 minutes'
+                                     AND final_etr + interval '30 minutes')::int) AS on_time,
+                   avg((ended_at > final_etr + interval '30 minutes')::int) AS late,
+                   avg(CASE WHEN first_etr IS NULL THEN NULL
+                            ELSE (ended_at BETWEEN first_etr - interval '30 minutes'
+                                               AND first_etr + interval '30 minutes')::int END) AS first_on_time,
+                   avg(revisions) AS avg_revisions
+            FROM scored
+            GROUP BY dno
+            ORDER BY dno
+            """
+        ).fetchall()
+
+    def share(value):
+        return None if value is None else round(float(value), 3)
+
+    return [
+        {
+            "dno": dno,
+            "outages": count,
+            "early": share(early),
+            "on_time": share(on_time),
+            "late": share(late),
+            "first_on_time": share(first_on_time),
+            "avg_revisions": round(float(revisions), 1),
+        }
+        for dno, count, early, on_time, late, first_on_time, revisions in rows
+    ]
