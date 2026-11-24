@@ -4,7 +4,7 @@ Every DNO in Great Britain publishes a live feed of current power cuts. None of 
 
 This project polls all six DNO groups every five minutes, keeps every response, and rebuilds them into one history: a row per outage, when it was first seen, how its ETR and customer numbers changed, and when it ended.
 
-I work in electricity distribution and wanted answers to questions I couldn't find public data for. How long do outages actually last? How good are the restoration estimates? How do the DNOs compare on the same measures?
+How long do outages actually last? How good are the restoration estimates? How do the DNOs compare on the same measures?
 
 ## What's covered
 
