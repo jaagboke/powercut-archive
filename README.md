@@ -33,15 +33,6 @@ DNO feeds -> capture -> archive/raw -> parser -> tracker -> Postgres -> web
 
 **Web.** FastAPI serving a live map (MapLibre) and a history page (Chart.js) with outages per day, how long they last, and how accurate the ETRs were.
 
-## Things the feeds taught me
-
-- NGED faults usually vanish while still "In Progress". They're never marked restored, so restoration time has to be inferred.
-- Northern Powergrid lists a fault once per postcode, so the parser merges rows by reference.
-- SSEN includes primary, HV feeder, transformer and LV feeder IDs, which opens up repeat-fault analysis by circuit later on.
-- SPEN publishes far less detail than the others: no coordinates and no customer counts.
-- UKPN and NGED timestamps have no timezone. They're assumed to be UK local time, which needs checking when the clocks change.
-- Feeds stall. NGED's stopped updating for three hours on my second day of capture.
-
 ## Running it locally
 
 You'll need Docker and Python 3.11+.
