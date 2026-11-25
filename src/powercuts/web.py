@@ -215,3 +215,53 @@ def etr_accuracy():
         }
         for dno, count, early, on_time, late, first_on_time, revisions in rows
     ]
+
+
+@app.get("/api/period")
+def period(days: int = 1):
+    with db.connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT dno, source_id, category, customers_confirmed_off,
+                   first_seen, ended_before, latitude, longitude
+            FROM outages
+            WHERE NOT planned
+              AND last_seen > now() - make_interval(days => %s)
+            """,
+            (days,),
+        ).fetchall()
+
+    features = []
+    totals = {}
+    for dno, source_id, category, customers, first_seen, ended_before, lat, lon in rows:
+        dno_totals = totals.setdefault(dno, {"dno": dno, "outages": 0, "customers": 0, "still_open": 0})
+        dno_totals["outages"] += 1
+        dno_totals["customers"] += customers or 0
+        if ended_before is None:
+            dno_totals["still_open"] += 1
+
+        if lat is None:
+            continue
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {
+                    "dno": dno,
+                    "source_id": source_id,
+                    "planned": False,
+                    "category": category,
+                    "customers": customers,
+                    "first_seen": iso(first_seen),
+                    "ended": iso(ended_before),
+                },
+            }
+        )
+
+    return {
+        "dnos": sorted(totals.values(), key=lambda d: d["dno"]),
+        "outages": {"type": "FeatureCollection", "features": features},
+    }
+
+
+PERIODS = {"day": 1, "week": 7}

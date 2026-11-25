@@ -13,11 +13,18 @@
     .legend { font-size: 13px; color: #5b6773; margin-top: 16px; }
     .legend div { margin-bottom: 6px; }
     .hollow { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #5b6773; margin-right: 8px; }
+    .modes { display: flex; gap: 8px; margin-bottom: 16px; }
+    .modes button {
+      font: inherit; font-size: 14px; padding: 6px 14px; cursor: pointer;
+      border: 1px solid #d5dae0; border-radius: 6px; background: #fff; color: #1d2733;
+    }
+    .modes button.current { background: #1d2733; border-color: #1d2733; color: #fff; }
     @media (max-width: 800px) {
       .layout { grid-template-columns: 1fr; }
       #map { height: 420px; }
     }
   </style>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2733'/%3E%3Cpath d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%23f2b134'/%3E%3C/svg%3E">
 </head>
 <body>
   <header>
@@ -30,10 +37,16 @@
   </header>
 
   <main>
+    <div class="modes" id="modes" align="center">
+      <button data-mode="now">Right now</button>
+      <button data-mode="day">Past day</button>
+      <button data-mode="week">Past week</button>
+    </div>
+
     <div class="stats">
-      <div class="stat"><div class="number" id="total-open">–</div><div class="label">open outages right now</div></div>
-      <div class="stat"><div class="number" id="total-customers">–</div><div class="label">customers off supply</div></div>
-      <div class="stat"><div class="number" id="total-ended">–</div><div class="label">outages ended in the last 24 hours</div></div>
+      <div class="stat"><div class="number" id="stat-1">–</div><div class="label" id="label-1"></div></div>
+      <div class="stat"><div class="number" id="stat-2">–</div><div class="label" id="label-2"></div></div>
+      <div class="stat"><div class="number" id="stat-3">–</div><div class="label" id="label-3"></div></div>
     </div>
 
     <div class="layout">
@@ -41,14 +54,15 @@
 
       <div class="card">
         <h2>By network operator</h2>
-        <p class="note">Every outage currently on each DNO's live feed, planned and unplanned.</p>
+        <p class="note" id="table-note"></p>
         <table>
-          <thead><tr><th>DNO</th><th>Open</th><th>Customers off</th><th>Ended 24h</th></tr></thead>
+          <thead id="table-head"></thead>
           <tbody id="rows"></tbody>
         </table>
         <div class="legend">
           <div><span class="dot" style="background:#5b6773"></span>Unplanned outage, bigger means more customers off</div>
-          <div><span class="hollow"></span>Planned work</div>
+          <div id="planned-key"><span class="hollow"></span>Planned work</div>
+          <div id="cluster-key">Circles with numbers are groups of outages from that DNO. Click one to zoom in.</div>
           <div>SPEN doesn't publish locations, so it's in the table but not on the map.</div>
         </div>
       </div>
@@ -57,7 +71,13 @@
 
   <script>
     const LOCAL = location.port === "8000";
+    const PERIOD_DAYS = { day: 1, week: 7 };
+    let mode = "now";
+
     function api(name) {
+      if (name === "period") {
+        return LOCAL ? `/api/period?days=${PERIOD_DAYS[mode]}` : `api/period_${mode}.json`;
+      }
       return LOCAL ? `/api/${name}` : `api/${name}.json`;
     }
 
@@ -74,30 +94,91 @@
       return n.toLocaleString("en-GB");
     }
 
-    async function loadSummary() {
-      const data = await (await fetch(api("summary"))).json();
+    function dnoCell(dno) {
+      return `<td><span class="dot" style="background:${COLOURS[dno] || "#999"}"></span>${NAMES[dno] || dno}</td>`;
+    }
 
-      document.getElementById("updated").textContent = data.updated
-        ? "Updated " + new Date(data.updated).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
-        : "No data yet";
+    function setStats(values, labels) {
+      for (let i = 0; i < 3; i++) {
+        document.getElementById(`stat-${i + 1}`).textContent = number(values[i]);
+        document.getElementById(`label-${i + 1}`).textContent = labels[i];
+      }
+    }
+
+    function setTable(note, headings, rows) {
+      document.getElementById("table-note").textContent = note;
+      document.getElementById("table-head").innerHTML =
+        "<tr>" + headings.map(h => `<th>${h}</th>`).join("") + "</tr>";
+      document.getElementById("rows").innerHTML = rows.join("");
+    }
+
+    async function showNow() {
+      const summary = await (await fetch(api("summary"))).json();
+      const outages = await (await fetch(api("open"))).json();
 
       let open = 0, customers = 0, ended = 0;
-      for (const d of data.dnos) {
+      for (const d of summary.dnos) {
         open += d.open_now;
         customers += d.customers_off;
         ended += d.ended_24h;
       }
-      document.getElementById("total-open").textContent = number(open);
-      document.getElementById("total-customers").textContent = number(customers);
-      document.getElementById("total-ended").textContent = number(ended);
+      setStats(
+        [open, customers, ended],
+        ["open outages right now", "customers off supply", "outages ended in the last 24 hours"],
+      );
+      setTable(
+        "Every outage currently on each DNO's live feed, planned and unplanned.",
+        ["DNO", "Open", "Customers off", "Ended 24h"],
+        summary.dnos.map(d => `<tr>${dnoCell(d.dno)}<td>${number(d.open_now)}</td>
+          <td>${number(d.customers_off)}</td><td>${number(d.ended_24h)}</td></tr>`),
+      );
+      document.getElementById("planned-key").style.display = "";
+      document.getElementById("cluster-key").style.display = "none";
+      setOutages(outages);
+    }
 
-      document.getElementById("rows").innerHTML = data.dnos.map(d => `
-        <tr>
-          <td><span class="dot" style="background:${COLOURS[d.dno] || "#999"}"></span>${NAMES[d.dno] || d.dno}</td>
-          <td>${number(d.open_now)}</td>
-          <td>${number(d.customers_off)}</td>
-          <td>${number(d.ended_24h)}</td>
-        </tr>`).join("");
+    async function showPeriod() {
+      const data = await (await fetch(api("period"))).json();
+      const label = mode === "day" ? "past day" : "past week";
+
+      let outages = 0, customers = 0, stillOpen = 0;
+      for (const d of data.dnos) {
+        outages += d.outages;
+        customers += d.customers;
+        stillOpen += d.still_open;
+      }
+      setStats(
+        [outages, customers, stillOpen],
+        [`unplanned power cuts in the ${label}`, "customers affected", "still not restored"],
+      );
+      setTable(
+        `Unplanned outages that were on a DNO's feed at any point in the ${label}.`,
+        ["DNO", "Power cuts", "Customers", "Still open"],
+        data.dnos.map(d => `<tr>${dnoCell(d.dno)}<td>${number(d.outages)}</td>
+          <td>${number(d.customers)}</td><td>${number(d.still_open)}</td></tr>`),
+      );
+      document.getElementById("planned-key").style.display = "none";
+      document.getElementById("cluster-key").style.display = "";
+      setOutages(data.outages);
+    }
+
+    function showMode(newMode) {
+      mode = newMode;
+      for (const button of document.querySelectorAll("#modes button")) {
+        button.classList.toggle("current", button.dataset.mode === mode);
+      }
+      if (mode === "now") {
+        showNow();
+      } else {
+        showPeriod();
+      }
+    }
+
+    async function showUpdated() {
+      const summary = await (await fetch(api("summary"))).json();
+      document.getElementById("updated").textContent = summary.updated
+        ? "Updated " + new Date(summary.updated).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
+        : "No data yet";
     }
 
     const map = new maplibregl.Map({
@@ -108,20 +189,47 @@
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
-    map.on("load", async () => {
-      const outages = await (await fetch(api("open"))).json();
-      map.addSource("outages", { type: "geojson", data: outages });
+    function setOutages(geojson) {
+      const empty = { type: "FeatureCollection", features: [] };
+      for (const dno of Object.keys(COLOURS)) {
+        const mine = { type: "FeatureCollection", features: geojson.features.filter(f => f.properties.dno === dno) };
+        map.getSource(`now-${dno}`).setData(mode === "now" ? mine : empty);
+        map.getSource(`period-${dno}`).setData(mode === "now" ? empty : mine);
+      }
+    }
 
-      const colour = ["match", ["get", "dno"]];
-      for (const [dno, c] of Object.entries(COLOURS)) colour.push(dno, c);
-      colour.push("#999");
+    function showPopup(e) {
+      const p = e.features[0].properties;
+      const isPlanned = p.planned === true || p.planned === "true";
+      let last;
+      if (mode === "now") {
+        const etr = p.etr && p.etr !== "null" ? new Date(p.etr).toLocaleString("en-GB") : "not given";
+        last = `Estimated restoration: ${etr}`;
+      } else {
+        last = p.ended && p.ended !== "null"
+          ? `Ended by: ${new Date(p.ended).toLocaleString("en-GB")}`
+          : "Still ongoing";
+      }
+      new maplibregl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(`
+          <strong>${NAMES[p.dno] || p.dno}</strong><br>
+          ${p.source_id}<br>
+          ${isPlanned ? "Planned work" : "Unplanned outage"}<br>
+          Customers off: ${p.customers ?? "unknown"}<br>
+          First seen: ${new Date(p.first_seen).toLocaleString("en-GB")}<br>
+          ${last}
+        `)
+        .addTo(map);
+    }
 
+    function addPoints(id, source, colour) {
       const planned = ["==", ["get", "planned"], true];
-
       map.addLayer({
-        id: "outages",
+        id,
         type: "circle",
-        source: "outages",
+        source,
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": [
             "interpolate", ["linear"], ["coalesce", ["get", "customers"], 0],
@@ -136,28 +244,80 @@
           "circle-stroke-width": ["case", planned, 2, 1],
         },
       });
+      map.on("click", id, showPopup);
+      map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
+    }
 
-      map.on("click", "outages", e => {
-        const p = e.features[0].properties;
-        const isPlanned = p.planned === true || p.planned === "true";
-        const etr = p.etr && p.etr !== "null" ? new Date(p.etr).toLocaleString("en-GB") : "not given";
-        new maplibregl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(`
-            <strong>${NAMES[p.dno] || p.dno}</strong><br>
-            ${p.source_id}<br>
-            ${isPlanned ? "Planned work" : "Unplanned outage"}<br>
-            Customers off: ${p.customers ?? "unknown"}<br>
-            First seen: ${new Date(p.first_seen).toLocaleString("en-GB")}<br>
-            Estimated restoration: ${etr}
-          `)
-          .addTo(map);
-      });
-      map.on("mouseenter", "outages", () => (map.getCanvas().style.cursor = "pointer"));
-      map.on("mouseleave", "outages", () => (map.getCanvas().style.cursor = ""));
+    map.on("load", () => {
+      const empty = { type: "FeatureCollection", features: [] };
+
+      for (const [dno, colour] of Object.entries(COLOURS)) {
+        // right now: plain dots, no grouping
+        map.addSource(`now-${dno}`, { type: "geojson", data: empty });
+        addPoints(`now-points-${dno}`, `now-${dno}`, colour);
+
+        // past day / past week: grouped when zoomed out
+        const source = `period-${dno}`;
+        map.addSource(source, {
+          type: "geojson",
+          data: empty,
+          cluster: true,
+          clusterRadius: 40,
+          clusterMaxZoom: 9,
+        });
+
+        map.addLayer({
+          id: `clusters-${dno}`,
+          type: "circle",
+          source,
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": colour,
+            "circle-opacity": 0.85,
+            "circle-radius": ["step", ["get", "point_count"], 14, 20, 18, 100, 24],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
+
+        map.addLayer({
+          id: `count-${dno}`,
+          type: "symbol",
+          source,
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-font": ["Noto Sans Regular"],
+            "text-size": 12,
+            "text-allow-overlap": true,
+          },
+          paint: { "text-color": "#ffffff" },
+        });
+
+        addPoints(`period-points-${dno}`, source, colour);
+
+        map.on("click", `clusters-${dno}`, async e => {
+          const cluster = e.features[0];
+          const zoom = await map.getSource(source).getClusterExpansionZoom(cluster.properties.cluster_id);
+          map.easeTo({ center: cluster.geometry.coordinates, zoom });
+        });
+        map.on("mouseenter", `clusters-${dno}`, () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", `clusters-${dno}`, () => (map.getCanvas().style.cursor = ""));
+      }
+
+      showMode("now");
     });
 
-    loadSummary();
+    for (const button of document.querySelectorAll("#modes button")) {
+      button.addEventListener("click", () => showMode(button.dataset.mode));
+    }
+
+    showUpdated();
   </script>
+
+<footer> 
+  A project by <a href="https://github.com/jaagboke/powercut-archive">Olajide Agboke</a>
+</footer>
 </body>
 </html>

@@ -41,6 +41,15 @@ tr:last-child td { border-bottom: none; }
 
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
 
+footer{
+  text-align: center;
+  color: #5b6773;
+  font-size: 13px;
+  padding: 24px 0 32px;
+}
+
+footer a{ color: #1d2733}
+
 @media (max-width: 800px) {
   header { flex-wrap: wrap; gap: 8px 16px; }
   header .updated { margin-left: 0; width: 100%; }
