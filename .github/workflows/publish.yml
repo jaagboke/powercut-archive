@@ -50,12 +50,9 @@ jobs:
         run: python -m powercuts.export
 
       - name: Add the pages
-        run: cp src/powercuts/static/*.html site/
-
-      - name: Add the pages
         run: cp src/powercuts/static/* site/
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
