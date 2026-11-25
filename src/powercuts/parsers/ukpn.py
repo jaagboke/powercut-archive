@@ -16,11 +16,20 @@ def parse(content: bytes, fetched_at: datetime | None = None) -> list[Observatio
     observations = []
     for row in rows:
         point = row.get("geopoint") or {}
+        reference = row["incidentreference"]
+
+        # MULT- records get a new random id on every poll, so they can't be tracked
+        if reference.startswith("MULT-"):
+            continue
+
+        # UKPN keeps restored incidents on the feed for a while; treat them as ended
+        if row.get("restoreddatetime"):
+            continue
         full_postcodes = row.get("fullpostcodedata") or ""
         observations.append(
             Observation(
                 dno="ukpn",
-                source_id=row["incidentreference"],
+                source_id=reference,
                 observed_at=fetched_at,
                 status=str(row.get("statusid") or ""),
                 planned=row.get("powercuttype") == "Planned",
