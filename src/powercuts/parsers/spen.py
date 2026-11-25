@@ -10,7 +10,9 @@ def parse(content: bytes, fetched_at: datetime | None = None) -> list[Observatio
 
     observations = []
     for row in rows:
-        sector = row.get("postcode_sector")
+        sectors = row.get("postcode_sector") or []
+        if isinstance(sectors, str):
+            sectors = [sectors]
         observations.append(
             Observation(
                 dno="spen",
@@ -28,7 +30,7 @@ def parse(content: bytes, fetched_at: datetime | None = None) -> list[Observatio
                 restored_at=None,
                 latitude=None,
                 longitude=None,
-                postcodes=(sector,) if sector else (),
+                postcodes=tuple(s.strip().upper() for s in sectors if s and s.strip()),
             )
         )
     return observations

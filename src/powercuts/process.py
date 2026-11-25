@@ -3,8 +3,8 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from powercuts import db
-from powercuts.parsers import nged, ssen, enwl, npg, ukpn, spen
+from powercuts import db, locate
+from powercuts.parsers import enwl, nged, npg, spen, ssen, ukpn
 from powercuts.sources import FEEDS
 from powercuts.tracker import Tracker
 
@@ -22,15 +22,19 @@ def fetched_time(path: Path) -> datetime:
     # snapshots are saved as raw/<dno>/<YYYY-MM-DD>/<HHMMSS>Z.<ext>
     return datetime.strptime(f"{path.parent.name} {path.stem}", "%Y-%m-%d %H%M%SZ").replace(tzinfo=UTC)
 
+
 def rebuild(dno: str, data_dir: Path) -> None:
     parse = PARSERS[dno]
     extension = FEEDS[dno]["extension"]
     files = sorted((data_dir / "raw" / dno).rglob(f"*.{extension}"))
 
+    lookup = locate.load(data_dir)
     tracker = Tracker(dno)
     changes = []
     for path in files:
-        changes += tracker.apply(parse(path.read_bytes(), fetched_time(path)))
+        observations = parse(path.read_bytes(), fetched_time(path))
+        observations = locate.add_locations(observations, lookup)
+        changes += tracker.apply(observations)
 
     with db.connect() as conn:
         db.create_tables(conn)
@@ -39,7 +43,10 @@ def rebuild(dno: str, data_dir: Path) -> None:
         db.save_changes(conn, changes)
 
     now = datetime.now(UTC).isoformat(timespec="seconds")
-    print(f"{now} {dno}: {len(files)} snapshots -> {len(tracker.outages)} outages, {len(changes)} changes", flush=True)
+    print(
+        f"{now} {dno}: {len(files)} snapshots -> {len(tracker.outages)} outages, {len(changes)} changes",
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -57,6 +64,7 @@ def main() -> None:
         if not args.interval:
             break
         time.sleep(args.interval)
+
 
 if __name__ == "__main__":
     main()

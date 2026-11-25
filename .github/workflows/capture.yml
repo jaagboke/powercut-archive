@@ -38,6 +38,9 @@ jobs:
           python -m powercuts --dno ukpn --once --data-dir archive
           python -m powercuts --dno enwl --once --data-dir archive
 
+      - name: Locate new postcode sectors
+        run: python -m powercuts.locate --data-dir archive
+
       - name: Commit new snapshots
         run: |
           git config user.name "capture-bot"

@@ -63,7 +63,7 @@
           <div><span class="dot" style="background:#5b6773"></span>Unplanned outage, bigger means more customers off</div>
           <div id="planned-key"><span class="hollow"></span>Planned work</div>
           <div id="cluster-key">Circles with numbers are groups of outages from that DNO. Click one to zoom in.</div>
-          <div>SPEN doesn't publish locations, so it's in the table but not on the map.</div>
+          <div>SPEN only publishes postcode sectors, so its dots are placed at the centre of the sector and are approximate.</div>
         </div>
       </div>
     </div>
@@ -215,6 +215,7 @@
         .setHTML(`
           <strong>${NAMES[p.dno] || p.dno}</strong><br>
           ${p.source_id}<br>
+          ${p.dno === "spen" ? "<em>Approximate location (postcode sector)</em><br>" : ""}
           ${isPlanned ? "Planned work" : "Unplanned outage"}<br>
           Customers off: ${p.customers ?? "unknown"}<br>
           First seen: ${new Date(p.first_seen).toLocaleString("en-GB")}<br>
