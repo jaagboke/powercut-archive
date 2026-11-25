@@ -3,14 +3,21 @@
 <head>
   <meta charset="utf-8">
   <title>GB Power Cut Archive: history</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2733'/%3E%3Cpath d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%23f2b134'/%3E%3C/svg%3E">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="style.css">
   <style>
     main { max-width: 1000px; }
     .chart { position: relative; height: 320px; }
+    .ranges { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .ranges button {
+      font: inherit; font-size: 14px; padding: 6px 14px; cursor: pointer;
+      border: 1px solid #d5dae0; border-radius: 6px; background: #fff; color: #1d2733;
+    }
+    .ranges button.current { background: #1d2733; border-color: #1d2733; color: #fff; }
+    .started { color: #5b6773; font-size: 13px; margin-bottom: 20px; }
   </style>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2733'/%3E%3Cpath d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%23f2b134'/%3E%3C/svg%3E">
 </head>
 <body>
   <header>
@@ -22,15 +29,23 @@
   </header>
 
   <main>
+    <div class="ranges" id="ranges">
+      <button data-range="day">Past day</button>
+      <button data-range="week">Past week</button>
+      <button data-range="month">Past month</button>
+      <button data-range="year">Past year</button>
+    </div>
+    <div class="started">The archive started in November 2026, so longer ranges only cover what's been collected so far.</div>
+
     <div class="card">
-      <h2>Unplanned power cuts per day</h2>
-      <p class="note">New unplanned outages first seen each day. Each line starts the day after we began capturing that DNO.</p>
+      <h2 id="daily-title">Unplanned power cuts per day</h2>
+      <p class="note">New unplanned outages first seen in each period. Each line starts after we began capturing that DNO.</p>
       <div class="chart"><canvas id="daily"></canvas></div>
     </div>
 
     <div class="card">
       <h2>How long unplanned power cuts last</h2>
-      <p class="note">From when the fault was reported to when it left the feed. Outages whose end time is uncertain by more than 30 minutes are left out.</p>
+      <p class="note">Outages that ended in this period, from when the fault was reported to when it left the feed. Outages whose end time is uncertain by more than 30 minutes are left out.</p>
       <div class="chart"><canvas id="durations"></canvas></div>
       <table id="duration-table"></table>
     </div>
@@ -45,8 +60,11 @@
 
   <script>
     const LOCAL = location.port === "8000";
+    const RANGE_DAYS = { day: 1, week: 7, month: 30, year: 365 };
+    let range = "week";
+
     function api(name) {
-      return LOCAL ? `/api/${name}` : `api/${name}.json`;
+      return LOCAL ? `/api/${name}?days=${RANGE_DAYS[range]}` : `api/${name}_${range}.json`;
     }
 
     const COLOURS = {
@@ -64,6 +82,13 @@
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.plugins.legend.labels.boxWidth = 12;
 
+    const charts = {};
+
+    function draw(id, config) {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(document.getElementById(id), config);
+    }
+
     function hours(minutes) {
       return (minutes / 60).toFixed(1) + "h";
     }
@@ -72,19 +97,29 @@
       return value === null ? "–" : (value * 100).toFixed(0) + "%";
     }
 
+    function periodLabel(period) {
+      const date = new Date(period);
+      if (range === "day") {
+        return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      }
+      return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    }
+
     async function drawDaily() {
       const rows = await (await fetch(api("daily"))).json();
+      document.getElementById("daily-title").textContent =
+        range === "day" ? "Unplanned power cuts per hour" : "Unplanned power cuts per day";
 
-      const days = [...new Set(rows.map(r => r.day))].sort();
+      const periods = [...new Set(rows.map(r => r.period))].sort();
       const dnos = [...new Set(rows.map(r => r.dno))].sort();
 
       const datasets = dnos.map(dno => {
         const mine = rows.filter(r => r.dno === dno);
-        const firstDay = mine[0].day;
-        const counts = Object.fromEntries(mine.map(r => [r.day, r.outages]));
+        const first = mine[0].period;
+        const counts = Object.fromEntries(mine.map(r => [r.period, r.outages]));
         return {
           label: NAMES[dno] || dno,
-          data: days.map(day => (day < firstDay ? null : counts[day] ?? 0)),
+          data: periods.map(p => (p < first ? null : counts[p] ?? 0)),
           borderColor: COLOURS[dno] || "#999",
           backgroundColor: COLOURS[dno] || "#999",
           borderWidth: 2,
@@ -93,11 +128,9 @@
         };
       });
 
-      const labels = days.map(day => new Date(day).toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
-
-      new Chart(document.getElementById("daily"), {
+      draw("daily", {
         type: "line",
-        data: { labels, datasets },
+        data: { labels: periods.map(periodLabel), datasets },
         options: {
           interaction: { mode: "index", intersect: false },
           scales: { y: { beginAtZero: true, title: { display: true, text: "Outages" } } },
@@ -108,7 +141,7 @@
     async function drawDurations() {
       const rows = await (await fetch(api("durations"))).json();
 
-      new Chart(document.getElementById("durations"), {
+      draw("durations", {
         type: "bar",
         data: {
           labels: rows.map(r => NAMES[r.dno] || r.dno),
@@ -135,7 +168,7 @@
     async function drawEtr() {
       const rows = await (await fetch(api("etr"))).json();
 
-      new Chart(document.getElementById("etr"), {
+      draw("etr", {
         type: "bar",
         data: {
           labels: rows.map(r => NAMES[r.dno] || r.dno),
@@ -164,12 +197,25 @@
               <td>${r.avg_revisions}</td></tr>`).join("")}`;
     }
 
-    drawDaily();
-    drawDurations();
-    drawEtr();
+    function showRange(newRange) {
+      range = newRange;
+      for (const button of document.querySelectorAll("#ranges button")) {
+        button.classList.toggle("current", button.dataset.range === range);
+      }
+      drawDaily();
+      drawDurations();
+      drawEtr();
+    }
+
+    for (const button of document.querySelectorAll("#ranges button")) {
+      button.addEventListener("click", () => showRange(button.dataset.range));
+    }
+
+    showRange("week");
   </script>
-<footer>
-  A project by <a href="https://github.com/jaagboke/powercut-archive">Olajide Agboke</a>
-</footer>
+
+  <footer>
+    A project by <a href="https://github.com/jaagboke">Jax</a>
+  </footer>
 </body>
 </html>
