@@ -58,12 +58,5 @@ def main() -> None:
             break
         time.sleep(args.interval)
 
-    while True:
-        rebuild(args.dno, args.data_dir)
-        if not args.interval:
-            break
-        time.sleep(args.interval)
-
-
 if __name__ == "__main__":
     main()
