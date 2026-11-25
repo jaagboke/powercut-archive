@@ -79,6 +79,10 @@ def summary():
 def history_page():
     return FileResponse(STATIC / "history.html")
 
+@app.get("/style.css")
+def stylesheet():
+    return FileResponse(STATIC / "style.css")
+
 @app.get("/api/daily")
 def daily():
     with db.connect() as conn:

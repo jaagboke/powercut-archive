@@ -6,30 +6,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="style.css">
   <style>
-    body { margin: 0; font-family: system-ui, sans-serif; display: flex; height: 100vh; }
-    #side { width: 320px; padding: 16px; overflow-y: auto; border-right: 1px solid #ddd; }
-    #map { flex: 1; }
-    h1 { font-size: 18px; margin: 0 0 4px; }
-    .updated { color: #666; font-size: 13px; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { text-align: right; padding: 6px 4px; border-bottom: 1px solid #eee; }
-    th:first-child, td:first-child { text-align: left; }
-    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-    a { color: #1f77b4; }
+    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 20px; }
+    #map { height: 620px; border-radius: 8px; border: 1px solid #e3e6ea; }
+    .legend { font-size: 13px; color: #5b6773; margin-top: 16px; }
+    .legend div { margin-bottom: 6px; }
+    .hollow { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #5b6773; margin-right: 8px; }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      #map { height: 420px; }
+    }
   </style>
 </head>
 <body>
-  <div id="side">
-    <h1>GB power cuts right now</h1>
-    <div class="updated" id="updated"></div>
-    <p><a href="history.html">History →</a></p>
-    <table>
-      <thead><tr><th>DNO</th><th>Open</th><th>Customers off</th><th>Ended 24h</th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </div>
-  <div id="map"></div>
+  <header>
+    <span class="name">GB Power Cut Archive</span>
+    <nav>
+      <a href="./" class="current">Live</a>
+      <a href="history.html">History</a>
+    </nav>
+    <span class="updated" id="updated"></span>
+  </header>
+
+  <main>
+    <div class="stats">
+      <div class="stat"><div class="number" id="total-open">–</div><div class="label">open outages right now</div></div>
+      <div class="stat"><div class="number" id="total-customers">–</div><div class="label">customers off supply</div></div>
+      <div class="stat"><div class="number" id="total-ended">–</div><div class="label">outages ended in the last 24 hours</div></div>
+    </div>
+
+    <div class="layout">
+      <div id="map"></div>
+
+      <div class="card">
+        <h2>By network operator</h2>
+        <p class="note">Every outage currently on each DNO's live feed, planned and unplanned.</p>
+        <table>
+          <thead><tr><th>DNO</th><th>Open</th><th>Customers off</th><th>Ended 24h</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="legend">
+          <div><span class="dot" style="background:#5b6773"></span>Unplanned outage, bigger means more customers off</div>
+          <div><span class="hollow"></span>Planned work</div>
+          <div>SPEN doesn't publish locations, so it's in the table but not on the map.</div>
+        </div>
+      </div>
+    </div>
+  </main>
 
   <script>
     const LOCAL = location.port === "8000";
@@ -38,72 +62,94 @@
     }
 
     const COLOURS = {
-      nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
-      spen: "#9467bd", ukpn: "#d62728", enwl: "#8c564b",
+      nged: "#2f6fb3", ssen: "#2e9a5f", npg: "#e0862b",
+      spen: "#7b5bb5", ukpn: "#d1423f", enwl: "#8a6a4f",
     };
+    const NAMES = {
+      nged: "NGED", ssen: "SSEN", npg: "Northern Powergrid",
+      spen: "SP Energy Networks", ukpn: "UK Power Networks", enwl: "Electricity North West",
+    };
+
+    function number(n) {
+      return n.toLocaleString("en-GB");
+    }
 
     async function loadSummary() {
       const data = await (await fetch(api("summary"))).json();
-      document.getElementById("updated").textContent =
-        "Latest snapshot: " + (data.updated ? new Date(data.updated).toLocaleString("en-GB") : "none");
+
+      document.getElementById("updated").textContent = data.updated
+        ? "Updated " + new Date(data.updated).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
+        : "No data yet";
+
+      let open = 0, customers = 0, ended = 0;
+      for (const d of data.dnos) {
+        open += d.open_now;
+        customers += d.customers_off;
+        ended += d.ended_24h;
+      }
+      document.getElementById("total-open").textContent = number(open);
+      document.getElementById("total-customers").textContent = number(customers);
+      document.getElementById("total-ended").textContent = number(ended);
+
       document.getElementById("rows").innerHTML = data.dnos.map(d => `
         <tr>
-          <td><span class="dot" style="background:${COLOURS[d.dno] || "#999"}"></span>${d.dno.toUpperCase()}</td>
-          <td>${d.open_now}</td>
-          <td>${d.customers_off}</td>
-          <td>${d.ended_24h}</td>
+          <td><span class="dot" style="background:${COLOURS[d.dno] || "#999"}"></span>${NAMES[d.dno] || d.dno}</td>
+          <td>${number(d.open_now)}</td>
+          <td>${number(d.customers_off)}</td>
+          <td>${number(d.ended_24h)}</td>
         </tr>`).join("");
     }
 
     const map = new maplibregl.Map({
       container: "map",
-      center: [-2.5, 54.5],
+      center: [-2.8, 54.4],
       zoom: 5,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
-          },
-        },
-        layers: [{ id: "osm", type: "raster", source: "osm" }],
-      },
+      style: "https://tiles.openfreemap.org/styles/positron",
     });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
     map.on("load", async () => {
       const outages = await (await fetch(api("open"))).json();
       map.addSource("outages", { type: "geojson", data: outages });
 
-      const colourMatch = ["match", ["get", "dno"]];
-      for (const [dno, colour] of Object.entries(COLOURS)) colourMatch.push(dno, colour);
-      colourMatch.push("#999");
+      const colour = ["match", ["get", "dno"]];
+      for (const [dno, c] of Object.entries(COLOURS)) colour.push(dno, c);
+      colour.push("#999");
+
+      const planned = ["==", ["get", "planned"], true];
 
       map.addLayer({
         id: "outages",
         type: "circle",
         source: "outages",
         paint: {
-          "circle-color": colourMatch,
-          "circle-radius": 6,
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#fff",
+          "circle-radius": [
+            "interpolate", ["linear"], ["coalesce", ["get", "customers"], 0],
+            0, 4,
+            50, 7,
+            500, 13,
+            2000, 20,
+          ],
+          "circle-color": colour,
+          "circle-opacity": ["case", planned, 0, 0.8],
+          "circle-stroke-color": ["case", planned, colour, "#ffffff"],
+          "circle-stroke-width": ["case", planned, 2, 1],
         },
       });
 
       map.on("click", "outages", e => {
         const p = e.features[0].properties;
+        const isPlanned = p.planned === true || p.planned === "true";
+        const etr = p.etr && p.etr !== "null" ? new Date(p.etr).toLocaleString("en-GB") : "not given";
         new maplibregl.Popup()
           .setLngLat(e.lngLat)
           .setHTML(`
-            <b>${p.dno.toUpperCase()} ${p.source_id}</b><br>
-            ${p.planned === true || p.planned === "true" ? "Planned" : "Unplanned"} · ${p.status || ""}<br>
-            ${p.category && p.category !== "null" ? p.category + "<br>" : ""}
-            Customers off: ${p.customers ?? "?"}<br>
+            <strong>${NAMES[p.dno] || p.dno}</strong><br>
+            ${p.source_id}<br>
+            ${isPlanned ? "Planned work" : "Unplanned outage"}<br>
+            Customers off: ${p.customers ?? "unknown"}<br>
             First seen: ${new Date(p.first_seen).toLocaleString("en-GB")}<br>
-            ETR: ${p.etr && p.etr !== "null" ? new Date(p.etr).toLocaleString("en-GB") : "not given"}
+            Estimated restoration: ${etr}
           `)
           .addTo(map);
       });

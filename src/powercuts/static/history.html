@@ -5,37 +5,42 @@
   <title>GB Power Cut Archive: history</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css">
   <style>
-    body { margin: 0; padding: 24px; font-family: system-ui, sans-serif; max-width: 1000px; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    .note { color: #666; font-size: 13px; margin-bottom: 20px; }
-    a { color: #1f77b4; }
-    table { margin-top: 16px; border-collapse: collapse; font-size: 14px; }
+    main { max-width: 1000px; }
+    .chart { position: relative; height: 320px; }
   </style>
 </head>
 <body>
-  <a href="./">← Live map</a>
+  <header>
+    <span class="name">GB Power Cut Archive</span>
+    <nav>
+      <a href="./">Live</a>
+      <a href="history.html" class="current">History</a>
+    </nav>
+  </header>
 
-  <h1>Unplanned power cuts per day</h1>
-  <div class="note">
-    New unplanned outages first seen each day, by DNO. Each DNO's line starts the day after we began capturing it.
-  </div>
-  <canvas id="daily" height="120"></canvas>
+  <main>
+    <div class="card">
+      <h2>Unplanned power cuts per day</h2>
+      <p class="note">New unplanned outages first seen each day. Each line starts the day after we began capturing that DNO.</p>
+      <div class="chart"><canvas id="daily"></canvas></div>
+    </div>
 
-  <h1 style="margin-top: 40px;">How long unplanned power cuts last</h1>
-  <div class="note">
-    From when the fault was reported to when it left the feed. Excludes outages whose end time is uncertain by more than 30 minutes.
-  </div>
-  <canvas id="durations" height="100"></canvas>
-  <table id="duration-table"></table>
+    <div class="card">
+      <h2>How long unplanned power cuts last</h2>
+      <p class="note">From when the fault was reported to when it left the feed. Outages whose end time is uncertain by more than 30 minutes are left out.</p>
+      <div class="chart"><canvas id="durations"></canvas></div>
+      <table id="duration-table"></table>
+    </div>
 
-  <h1 style="margin-top: 40px;">How accurate are restoration estimates?</h1>
-  <div class="note">
-    Actual end versus the final ETR given. "On time" means within 30 minutes either side.
-    "First ETR on time" scores the original estimate instead of the last one.
-  </div>
-  <canvas id="etr" height="100"></canvas>
-  <table id="etr-table"></table>
+    <div class="card">
+      <h2>How accurate are restoration estimates?</h2>
+      <p class="note">When power came back compared with the last estimate given. On time means within 30 minutes either side. First estimate on time scores the original estimate instead.</p>
+      <div class="chart"><canvas id="etr"></canvas></div>
+      <table id="etr-table"></table>
+    </div>
+  </main>
 
   <script>
     const LOCAL = location.port === "8000";
@@ -44,10 +49,19 @@
     }
 
     const COLOURS = {
-      nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
-      spen: "#9467bd", ukpn: "#d62728", enwl: "#8c564b",
+      nged: "#2f6fb3", ssen: "#2e9a5f", npg: "#e0862b",
+      spen: "#7b5bb5", ukpn: "#d1423f", enwl: "#8a6a4f",
     };
-    const CELL = "padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right;";
+    const NAMES = {
+      nged: "NGED", ssen: "SSEN", npg: "Northern Powergrid",
+      spen: "SP Energy Networks", ukpn: "UK Power Networks", enwl: "Electricity North West",
+    };
+
+    Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    Chart.defaults.color = "#5b6773";
+    Chart.defaults.borderColor = "#eef0f2";
+    Chart.defaults.maintainAspectRatio = false;
+    Chart.defaults.plugins.legend.labels.boxWidth = 12;
 
     function hours(minutes) {
       return (minutes / 60).toFixed(1) + "h";
@@ -68,17 +82,21 @@
         const firstDay = mine[0].day;
         const counts = Object.fromEntries(mine.map(r => [r.day, r.outages]));
         return {
-          label: dno.toUpperCase(),
+          label: NAMES[dno] || dno,
           data: days.map(day => (day < firstDay ? null : counts[day] ?? 0)),
           borderColor: COLOURS[dno] || "#999",
           backgroundColor: COLOURS[dno] || "#999",
-          tension: 0.2,
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0,
         };
       });
 
+      const labels = days.map(day => new Date(day).toLocaleDateString("en-GB", { day: "numeric", month: "short" }));
+
       new Chart(document.getElementById("daily"), {
         type: "line",
-        data: { labels: days, datasets },
+        data: { labels, datasets },
         options: {
           interaction: { mode: "index", intersect: false },
           scales: { y: { beginAtZero: true, title: { display: true, text: "Outages" } } },
@@ -92,10 +110,10 @@
       new Chart(document.getElementById("durations"), {
         type: "bar",
         data: {
-          labels: rows.map(r => r.dno.toUpperCase()),
+          labels: rows.map(r => NAMES[r.dno] || r.dno),
           datasets: [
-            { label: "Median", data: rows.map(r => r.median_minutes / 60), backgroundColor: "#1f77b4" },
-            { label: "90th percentile", data: rows.map(r => r.p90_minutes / 60), backgroundColor: "#aec7e8" },
+            { label: "Typical (median)", data: rows.map(r => r.median_minutes / 60), backgroundColor: "#2f6fb3" },
+            { label: "Long ones (90th percentile)", data: rows.map(r => r.p90_minutes / 60), backgroundColor: "#a9c4e2" },
           ],
         },
         options: {
@@ -104,14 +122,13 @@
       });
 
       document.getElementById("duration-table").innerHTML = `
-        <tr><th style="${CELL} text-align: left;">DNO</th><th style="${CELL}">Outages</th>
-            <th style="${CELL}">Median</th><th style="${CELL}">90th pct</th><th style="${CELL}">Over 12h</th></tr>
+        <tr><th>DNO</th><th>Outages</th><th>Median</th><th>90th percentile</th><th>Over 12 hours</th></tr>
         ${rows.map(r => `
-          <tr><td style="${CELL} text-align: left;">${r.dno.toUpperCase()}</td>
-              <td style="${CELL}">${r.outages}</td>
-              <td style="${CELL}">${hours(r.median_minutes)}</td>
-              <td style="${CELL}">${hours(r.p90_minutes)}</td>
-              <td style="${CELL}">${(r.share_over_12h * 100).toFixed(0)}%</td></tr>`).join("")}`;
+          <tr><td><span class="dot" style="background:${COLOURS[r.dno] || "#999"}"></span>${NAMES[r.dno] || r.dno}</td>
+              <td>${r.outages}</td>
+              <td>${hours(r.median_minutes)}</td>
+              <td>${hours(r.p90_minutes)}</td>
+              <td>${pct(r.share_over_12h)}</td></tr>`).join("")}`;
     }
 
     async function drawEtr() {
@@ -120,11 +137,11 @@
       new Chart(document.getElementById("etr"), {
         type: "bar",
         data: {
-          labels: rows.map(r => r.dno.toUpperCase()),
+          labels: rows.map(r => NAMES[r.dno] || r.dno),
           datasets: [
-            { label: "Early", data: rows.map(r => r.early * 100), backgroundColor: "#2ca02c" },
-            { label: "On time", data: rows.map(r => r.on_time * 100), backgroundColor: "#1f77b4" },
-            { label: "Late", data: rows.map(r => r.late * 100), backgroundColor: "#d62728" },
+            { label: "Back early", data: rows.map(r => r.early * 100), backgroundColor: "#2e9a5f" },
+            { label: "On time", data: rows.map(r => r.on_time * 100), backgroundColor: "#2f6fb3" },
+            { label: "Late", data: rows.map(r => r.late * 100), backgroundColor: "#d1423f" },
           ],
         },
         options: {
@@ -137,15 +154,13 @@
       });
 
       document.getElementById("etr-table").innerHTML = `
-        <tr><th style="${CELL} text-align: left;">DNO</th><th style="${CELL}">Outages</th>
-            <th style="${CELL}">Final ETR on time</th><th style="${CELL}">First ETR on time</th>
-            <th style="${CELL}">Avg revisions</th></tr>
+        <tr><th>DNO</th><th>Outages</th><th>Last estimate on time</th><th>First estimate on time</th><th>Avg revisions</th></tr>
         ${rows.map(r => `
-          <tr><td style="${CELL} text-align: left;">${r.dno.toUpperCase()}</td>
-              <td style="${CELL}">${r.outages}</td>
-              <td style="${CELL}">${pct(r.on_time)}</td>
-              <td style="${CELL}">${pct(r.first_on_time)}</td>
-              <td style="${CELL}">${r.avg_revisions}</td></tr>`).join("")}`;
+          <tr><td><span class="dot" style="background:${COLOURS[r.dno] || "#999"}"></span>${NAMES[r.dno] || r.dno}</td>
+              <td>${r.outages}</td>
+              <td>${pct(r.on_time)}</td>
+              <td>${pct(r.first_on_time)}</td>
+              <td>${r.avg_revisions}</td></tr>`).join("")}`;
     }
 
     drawDaily();
