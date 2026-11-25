@@ -13,11 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
 
     services:
       postgres:
@@ -52,9 +49,19 @@ jobs:
       - name: Add the pages
         run: cp src/powercuts/static/* site/
 
+      - name: Show what will be published
+        run: find site -type f
+
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v4
