@@ -16,13 +16,14 @@
     th, td { text-align: right; padding: 6px 4px; border-bottom: 1px solid #eee; }
     th:first-child, td:first-child { text-align: left; }
     .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+    a { color: #1f77b4; }
   </style>
 </head>
 <body>
   <div id="side">
     <h1>GB power cuts right now</h1>
     <div class="updated" id="updated"></div>
-      <p><a href="/history">History -></a></p>
+    <p><a href="history.html">History →</a></p>
     <table>
       <thead><tr><th>DNO</th><th>Open</th><th>Customers off</th><th>Ended 24h</th></tr></thead>
       <tbody id="rows"></tbody>
@@ -31,13 +32,18 @@
   <div id="map"></div>
 
   <script>
+    const LOCAL = location.port === "8000";
+    function api(name) {
+      return LOCAL ? `/api/${name}` : `api/${name}.json`;
+    }
+
     const COLOURS = {
       nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
       spen: "#9467bd", ukpn: "#d62728", enwl: "#8c564b",
     };
 
     async function loadSummary() {
-      const data = await (await fetch("/api/summary")).json();
+      const data = await (await fetch(api("summary"))).json();
       document.getElementById("updated").textContent =
         "Latest snapshot: " + (data.updated ? new Date(data.updated).toLocaleString("en-GB") : "none");
       document.getElementById("rows").innerHTML = data.dnos.map(d => `
@@ -68,7 +74,7 @@
     });
 
     map.on("load", async () => {
-      const outages = await (await fetch("/api/open")).json();
+      const outages = await (await fetch(api("open"))).json();
       map.addSource("outages", { type: "geojson", data: outages });
 
       const colourMatch = ["match", ["get", "dno"]];

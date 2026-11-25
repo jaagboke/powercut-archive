@@ -75,10 +75,9 @@ def summary():
         ],
     }
 
-@app.get("/history")
+@app.get("/history.html")
 def history_page():
     return FileResponse(STATIC / "history.html")
-
 
 @app.get("/api/daily")
 def daily():

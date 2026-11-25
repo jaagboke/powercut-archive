@@ -10,10 +10,12 @@
     h1 { font-size: 20px; margin: 0 0 4px; }
     .note { color: #666; font-size: 13px; margin-bottom: 20px; }
     a { color: #1f77b4; }
+    table { margin-top: 16px; border-collapse: collapse; font-size: 14px; }
   </style>
 </head>
 <body>
-  <a href="/">← Live map</a>
+  <a href="./">← Live map</a>
+
   <h1>Unplanned power cuts per day</h1>
   <div class="note">
     New unplanned outages first seen each day, by DNO. Each DNO's line starts the day after we began capturing it.
@@ -25,7 +27,7 @@
     From when the fault was reported to when it left the feed. Excludes outages whose end time is uncertain by more than 30 minutes.
   </div>
   <canvas id="durations" height="100"></canvas>
-  <table id="duration-table" style="margin-top: 16px; border-collapse: collapse; font-size: 14px;"></table>
+  <table id="duration-table"></table>
 
   <h1 style="margin-top: 40px;">How accurate are restoration estimates?</h1>
   <div class="note">
@@ -33,16 +35,30 @@
     "First ETR on time" scores the original estimate instead of the last one.
   </div>
   <canvas id="etr" height="100"></canvas>
-  <table id="etr-table" style="margin-top: 16px; border-collapse: collapse; font-size: 14px;"></table>
+  <table id="etr-table"></table>
 
   <script>
+    const LOCAL = location.port === "8000";
+    function api(name) {
+      return LOCAL ? `/api/${name}` : `api/${name}.json`;
+    }
+
     const COLOURS = {
       nged: "#1f77b4", ssen: "#2ca02c", npg: "#ff7f0e",
       spen: "#9467bd", ukpn: "#d62728", enwl: "#8c564b",
     };
+    const CELL = "padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right;";
+
+    function hours(minutes) {
+      return (minutes / 60).toFixed(1) + "h";
+    }
+
+    function pct(value) {
+      return value === null ? "–" : (value * 100).toFixed(0) + "%";
+    }
 
     async function drawDaily() {
-      const rows = await (await fetch("/api/daily")).json();
+      const rows = await (await fetch(api("daily"))).json();
 
       const days = [...new Set(rows.map(r => r.day))].sort();
       const dnos = [...new Set(rows.map(r => r.dno))].sort();
@@ -70,12 +86,8 @@
       });
     }
 
-        function hours(minutes) {
-      return (minutes / 60).toFixed(1) + "h";
-    }
-
     async function drawDurations() {
-      const rows = await (await fetch("/api/durations")).json();
+      const rows = await (await fetch(api("durations"))).json();
 
       new Chart(document.getElementById("durations"), {
         type: "bar",
@@ -91,31 +103,24 @@
         },
       });
 
-      const cell = "padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right;";
       document.getElementById("duration-table").innerHTML = `
-        <tr><th style="${cell} text-align: left;">DNO</th><th style="${cell}">Outages</th>
-            <th style="${cell}">Median</th><th style="${cell}">90th pct</th><th style="${cell}">Over 12h</th></tr>
+        <tr><th style="${CELL} text-align: left;">DNO</th><th style="${CELL}">Outages</th>
+            <th style="${CELL}">Median</th><th style="${CELL}">90th pct</th><th style="${CELL}">Over 12h</th></tr>
         ${rows.map(r => `
-          <tr><td style="${cell} text-align: left;">${r.dno.toUpperCase()}</td>
-              <td style="${cell}">${r.outages}</td>
-              <td style="${cell}">${hours(r.median_minutes)}</td>
-              <td style="${cell}">${hours(r.p90_minutes)}</td>
-              <td style="${cell}">${(r.share_over_12h * 100).toFixed(0)}%</td></tr>`).join("")}`;
-    }
-
-
-        function pct(value) {
-      return value === null ? "–" : (value * 100).toFixed(0) + "%";
+          <tr><td style="${CELL} text-align: left;">${r.dno.toUpperCase()}</td>
+              <td style="${CELL}">${r.outages}</td>
+              <td style="${CELL}">${hours(r.median_minutes)}</td>
+              <td style="${CELL}">${hours(r.p90_minutes)}</td>
+              <td style="${CELL}">${(r.share_over_12h * 100).toFixed(0)}%</td></tr>`).join("")}`;
     }
 
     async function drawEtr() {
-      const rows = await (await fetch("/api/etr")).json();
-      const labels = rows.map(r => r.dno.toUpperCase());
+      const rows = await (await fetch(api("etr"))).json();
 
       new Chart(document.getElementById("etr"), {
         type: "bar",
         data: {
-          labels,
+          labels: rows.map(r => r.dno.toUpperCase()),
           datasets: [
             { label: "Early", data: rows.map(r => r.early * 100), backgroundColor: "#2ca02c" },
             { label: "On time", data: rows.map(r => r.on_time * 100), backgroundColor: "#1f77b4" },
@@ -131,17 +136,16 @@
         },
       });
 
-      const cell = "padding: 6px 12px; border-bottom: 1px solid #eee; text-align: right;";
       document.getElementById("etr-table").innerHTML = `
-        <tr><th style="${cell} text-align: left;">DNO</th><th style="${cell}">Outages</th>
-            <th style="${cell}">Final ETR on time</th><th style="${cell}">First ETR on time</th>
-            <th style="${cell}">Avg revisions</th></tr>
+        <tr><th style="${CELL} text-align: left;">DNO</th><th style="${CELL}">Outages</th>
+            <th style="${CELL}">Final ETR on time</th><th style="${CELL}">First ETR on time</th>
+            <th style="${CELL}">Avg revisions</th></tr>
         ${rows.map(r => `
-          <tr><td style="${cell} text-align: left;">${r.dno.toUpperCase()}</td>
-              <td style="${cell}">${r.outages}</td>
-              <td style="${cell}">${pct(r.on_time)}</td>
-              <td style="${cell}">${pct(r.first_on_time)}</td>
-              <td style="${cell}">${r.avg_revisions}</td></tr>`).join("")}`;
+          <tr><td style="${CELL} text-align: left;">${r.dno.toUpperCase()}</td>
+              <td style="${CELL}">${r.outages}</td>
+              <td style="${CELL}">${pct(r.on_time)}</td>
+              <td style="${CELL}">${pct(r.first_on_time)}</td>
+              <td style="${CELL}">${r.avg_revisions}</td></tr>`).join("")}`;
     }
 
     drawDaily();

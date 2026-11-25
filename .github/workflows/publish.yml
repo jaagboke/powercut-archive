@@ -1,0 +1,60 @@
+name: publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: powercuts
+          POSTGRES_PASSWORD: powercuts
+          POSTGRES_DB: powercuts
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install .
+
+      - name: Rebuild database from the archive
+        run: python -m powercuts.process --data-dir archive
+
+      - name: Export JSON
+        run: python -m powercuts.export
+
+      - name: Add the pages
+        run: cp src/powercuts/static/*.html site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
